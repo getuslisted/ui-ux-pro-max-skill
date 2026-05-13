@@ -1,0 +1,2 @@
+.alert { border-left: 4px solid #ff4444; padding: 16px; }
+.callout { border-right: 6px solid var(--accent); }
