@@ -1,12 +1,10 @@
 ---
-allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(node:*), Bash(python3:*), Bash(rg:*), Read, Glob, Grep, LS, Task
-description: Final-line-of-defense quality pipeline. Nine phases. Composes security, design, and UI/UX intelligence.
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(node:*), Bash(python3:*), Bash(rg:*), Bash(grep:*), Bash(bash:*), Bash(quality-checks/scripts/check.sh:*), Read, Glob, Grep, LS, Task
+description: Final-line-of-defense quality pipeline. Nine phases.
 argument-hint: "[phase=N|N,N,N] [target=path]"
 ---
 
-You are running Quality Checks, the nine-phase pipeline defined in `quality-checks/`.
-
-Load reference documents from `quality-checks/` (PIPELINE.md, RUBRIC.md, CHECKLIST.md, ANTIPATTERNS.md, COPY-DENYLIST.md, BLOCKS.md). The full operational instructions live at `quality-checks/commands/quality-checks.md`.
+You are running Quality Checks v1.1.
 
 ## Inputs
 
@@ -16,16 +14,40 @@ Load reference documents from `quality-checks/` (PIPELINE.md, RUBRIC.md, CHECKLI
 !`git diff --merge-base origin/HEAD`
 ```
 
+## Pre-flight: deterministic gate
+
+```
+!`bash quality-checks/scripts/check.sh 2>&1 || true`
+```
+
+Output is fact. If `Status: FAIL`, verdict cannot be Ready to ship.
+
 ## Argument parsing
 
-- `phase=N` runs only phase N.
-- `phase=N,M,P` runs only those phases.
-- `target=<path>` scopes to a path.
-- No arguments runs all nine phases on the current branch diff.
+- `phase=N` only that phase.
+- `phase=N,M,P` only those phases.
+- `target=<path>` scopes.
+- No arguments runs all nine phases.
+
+## Reference loading
+
+Load `quality-checks/PIPELINE.md`, `RUBRIC.md`, `CHECKLIST.md`, `ANTIPATTERNS.md`, `COPY-DENYLIST.md`.
+
+## Discovery (Phase 0)
+
+Register. Design system map. Stack. Industry. Anti-references.
+
+Graceful degradation: missing or trivial `PRODUCT.md` does not halt.
 
 ## Phase execution
 
-Follow the operational instructions in `quality-checks/commands/quality-checks.md`. Use sub-tasks for Phase 1 (security) and Phase 4 (a11y) where parallelism helps.
+Per `PIPELINE.md`. Incorporate pre-flight findings. Score 0-4 where applicable.
+
+Sub-tasks for Phase 1, 4, 8. Phase 1 confidence ≥ 8.
+
+## Composite & sign-off
+
+Score /20 from five dimensions (Anti-Pattern, Design System, Accessibility, Performance, Resilience). Severity census. Security verdict. Gate verdict. Final per `RUBRIC.md`.
 
 ## Output
 
@@ -33,4 +55,4 @@ Report per `RUBRIC.md` template. Markdown only.
 
 If **Hold**, end with the next command. If **Ready to ship**, end with `Ready to ship.`
 
-Begin discovery now.
+Begin pre-flight, then discovery.

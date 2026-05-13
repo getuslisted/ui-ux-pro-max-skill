@@ -1,327 +1,143 @@
 # Pipeline
 
-Nine phases. Run them in order. Each phase has explicit inputs, checks, outputs, and exit criteria.
+Nine phases. Version: **v1.1.0** (2026-05-13).
 
-Version: **v1.0.0**.
+Changelog from v1.0:
+- Rubric dimension double-count fixed.
+- `PRODUCT.md` no longer hard-gates.
+- Removed undefined `target=<paste>`.
+- Phase 1 composes with `/security-review`.
+- Deterministic gate added (`scripts/check.sh`).
 
 ---
 
 ## Phase 0 — Discovery & Context
 
-The pipeline cannot grade what it cannot read.
+Inputs: branch diff; root scanned for `PRODUCT.md`, `DESIGN.md`, `design-system/MASTER.md`, configs.
 
-### Inputs
+Checks: register; design system map; stack; industry (via this repo's `search.py` when present); anti-references.
 
-- The current branch diff.
-- Repo root scanned for `PRODUCT.md`, `DESIGN.md`, `design-system/MASTER.md`, `package.json`, framework configs.
+### Graceful degradation
 
-### Checks
+- `PRODUCT.md` present and non-trivial: full pipeline.
+- Present but trivial: pipeline runs; report nudges.
+- Missing: pipeline runs every phase EXCEPT register-specific and industry-specific checks; report nudges.
 
-1. **Register**. Task cue, surface in focus, then `register` field in `PRODUCT.md`. First match wins. Cache `brand` or `product`.
-2. **Design system map**. Walk for tokens (CSS variables, theme files, tokens JSON). Record presence or absence of: color, type, spacing, radius, shadow, motion, dark-mode variants.
-3. **Stack identification**. From `package.json`, frame configs, file extensions. One of: `html-tailwind`, `react`, `nextjs`, `astro`, `vue`, `nuxtjs`, `svelte`, `swiftui`, `react-native`, `flutter`, `shadcn`, `jetpack-compose`, `angular`, `laravel`.
-4. **Industry classification**. Match against the 161 reasoning rules in this repo's `data/products.csv`. Eight macro categories: Tech & SaaS, Finance, Healthcare, E-commerce, Services, Creative, Lifestyle, Emerging Tech. The classification feeds Phase 2's industry anti-references.
-5. **Anti-references**. Pull `PRODUCT.md`'s anti-references list.
-
-### Output
-
-Discovery JSON kept in scope:
-
-```json
-{
-  "register": "brand|product",
-  "stack": "react",
-  "industry": "saas|fintech|healthcare|...",
-  "design_system": {
-    "tokens": { "color": true, "type": true, "spacing": true, "motion": false },
-    "dark_mode": false,
-    "master": "design-system/MASTER.md"
-  },
-  "anti_references": ["dark mode with purple gradients", "hero metric template"],
-  "diff_files": [ ... ]
-}
-```
-
-### Exit criterion
-
-`PRODUCT.md` exists and is non-trivial (≥ 200 chars, no `[TODO]`). Otherwise halt and run `/impeccable teach`.
+Never halts.
 
 ---
 
 ## Phase 1 — Security Lockdown
 
-Verbatim from `claude-code-security-review`. Reports HIGH-confidence vulnerabilities only.
+Preferred: invoke `/security-review` from `claude-code-security-review`. Fallback: inline prompt.
 
-### Sub-phases
+Sub-phases: 1A Repository Context. 1B Comparative Analysis. 1C Vulnerability Assessment.
 
-**1A** Repository Context Research. Identify existing security frameworks, libraries, sanitization patterns.
+Categories: Input Validation, AuthN / AuthZ, Crypto & Secrets, Injection & Code Execution, Data Exposure.
 
-**1B** Comparative Analysis. Compare new code against existing patterns. Flag deviations.
+False-positive filter: DoS, on-disk secrets if otherwise secured, rate-limiting, memory exhaustion, generic input-validation, GitHub Actions without concrete trigger, theoretical races, outdated libs, memory safety in safe langs, test files, log spoofing, path-only SSRF, user content in AI prompts, regex injection / DoS, doc files, lack of audit logs.
 
-**1C** Vulnerability Assessment across Input Validation, AuthN / AuthZ, Crypto & Secrets, Injection & Code Execution, Data Exposure.
+Confidence: 8-10 report; 4-7 with attack path; 1-3 drop.
 
-### Categories
-
-- **Input Validation**: SQL injection, command injection, XXE, template injection, NoSQL injection, path traversal.
-- **AuthN / AuthZ**: bypass, privilege escalation, session flaws, JWT, IDOR.
-- **Crypto & Secrets**: hardcoded keys, weak algorithms, improper key storage, randomness, cert validation.
-- **Injection & Code Execution**: deserialization RCE, pickle, YAML, eval, XSS (reflected, stored, DOM).
-- **Data Exposure**: PII handling, API leakage, debug exposure, sensitive logs.
-
-### False-positive filter (hard exclusions)
-
-Do not report: DoS, on-disk secrets if otherwise secured, rate-limiting concerns, memory / CPU exhaustion, generic input-validation gaps, GitHub Action workflow issues without concrete trigger, general lack of hardening, theoretical race conditions, outdated libraries, memory safety in memory-safe languages, test files, log spoofing from un-sanitized input, path-only SSRF, user content in AI prompts, regex injection / regex DoS, doc files, lack of audit logs.
-
-### Precedents
-
-Logging URLs is safe. UUIDs are unguessable. Env vars and CLI flags are trusted. React, Angular, Vue are XSS-safe by default (only flag `dangerouslySetInnerHTML`, `bypassSecurityTrustHtml`, `v-html`, equivalents). Client-side auth checks aren't vulnerabilities. Logging non-PII is not a vulnerability. Shell-script command injection requires a concrete attack path.
-
-### Confidence threshold
-
-8-10: report. 4-7: report only with concrete attack path. 1-3: drop.
-
-### Exit criterion
-
-Zero HIGH findings. Zero MEDIUM with confidence ≥ 0.85. Single qualifying finding fails the entire pipeline.
+Exit: zero HIGH; zero MEDIUM ≥ 0.85.
 
 ---
 
 ## Phase 2 — Anti-Pattern Audit
 
-The AI-slop test, two altitudes.
+Deterministic subset: `qc-001`, `qc-002`, `qc-007`, `qc-009`.
 
-See [`ANTIPATTERNS.md`](./ANTIPATTERNS.md) for the full catalog.
+LLM-judgment subset: `qc-003` glassmorphism, `qc-004` hero-metric, `qc-005` identical card grids, `qc-006` modal-first, `qc-008` bounce easing, `qc-010` nested cards. First / second-order category reflexes. Industry-specific anti-patterns from this repo's 161 reasoning rules.
 
-### Cross-register absolute bans
+Scoring: 0 AI slop gallery. 4 No AI tells.
 
-Side-stripe borders > 1px. Gradient text. Glassmorphism by default. Hero-metric template. Identical card grids. Modal as first thought. Pure black or white. Bounce / elastic easing. Layout-property animation. Nested cards.
-
-### First-order category reflex
-
-Guess the theme + palette from category alone? Observability → dark blue + neon. Healthcare → white + teal. Banking → navy + gold. Crypto → neon on black. AI tool → purple-pink. Wellness → soft pink + sage.
-
-### Second-order category reflex
-
-Anti-cliche cliche. "AI tool, not purple-pink" → editorial-typographic on warm cream. "Fintech, not navy-gold" → terminal-native dark mode. "SaaS, not gradient-on-dark" → brutalist black-and-white.
-
-### Industry-specific anti-patterns
-
-From this repo's 161 reasoning rules. For the industry detected in Phase 0, load and check the corresponding anti-references. Banking should not use AI purple-pink gradients. Healthcare should not use brutalism. Wellness should not use harsh animations.
-
-### Scoring
-
-0 — AI slop gallery. 1 — Heavy AI aesthetic. 2 — Some tells. 3 — Mostly clean. 4 — No AI tells.
-
-### Exit criterion
-
-Score ≥ 3, zero absolute-ban hits.
+Exit: score ≥ 3, zero absolute-ban hits.
 
 ---
 
 ## Phase 3 — Design System Conformance
 
-Drift kills design systems quietly.
+Checks: color (tokens, OKLCH, no `#000`/`#fff`, no gray on color); typography (≥ 1.25 contrast, 65-75ch); spacing (scale-only); radius (controlled); shadow (flat at rest, ≤ 0.15 alpha); motion (durations from scale, ease-out, `prefers-reduced-motion`); component reuse.
 
-### Checks
+Drift classification: missing token / one-off / conceptual.
 
-**Color**: tokens only. OKLCH for new colors. Chroma reduces toward extremes. No `#000` / `#fff`. No gray on color.
+Scoring: 0 hard-coded. 4 full token system.
 
-**Typography**: hierarchy contrast ≥ 1.25 between steps. Body 65-75ch. Headings `clamp()`, body fixed `rem`. Italic is voice, not emphasis.
-
-**Spacing**: scale-only.
-
-**Radius**: controlled vocabulary. No single rounded-lg default.
-
-**Shadow**: flat at rest. Strongest blur ≤ 0.15 alpha. Tinted only for accent-glow.
-
-**Motion**: durations from scale. Ease-out exponential family. Honour `prefers-reduced-motion`.
-
-**Component reuse**: shared primitives, not one-off reimplementations.
-
-### Drift classification
-
-Missing token. One-off implementation. Conceptual misalignment. Each fix differs.
-
-### Scoring
-
-0 — Hard-coded everything. 4 — Full token system, dark mode works.
-
-### Exit criterion
-
-Score ≥ 3, zero P0 drift, ≤ 3 P1 drift items.
+Exit: score ≥ 3, zero P0 drift, ≤ 3 P1 drift.
 
 ---
 
 ## Phase 4 — Accessibility Hardening
 
-WCAG AA is the floor.
+Deterministic subset: `qc-042`, `qc-043` (P0).
 
-### Checks
+LLM-judgment subset: contrast ≥ 4.5:1, semantic HTML, ARIA names, keyboard reachable, touch targets ≥ 44 × 44, form labels, `prefers-reduced-motion`, color independence.
 
-Contrast ≥ 4.5:1 (3:1 large). Semantic HTML (button, a, h1→h2→h3, landmarks). ARIA names on interactive. Keyboard reachable, no traps, focus indicators always visible. Touch targets ≥ 44 × 44 px. Forms with labels, `aria-required`, `aria-invalid`, `aria-describedby`. `prefers-reduced-motion`. No flashing > 3 Hz. Color independence.
+Scoring: 0 inaccessible. 4 WCAG AA fully met.
 
-### Severity
-
-P0: WCAG A failures. P1: WCAG AA failures. P2: minor a11y polish. P3: AAA enhancement.
-
-### Scoring
-
-0 — Inaccessible. 4 — WCAG AA fully met, approaches AAA.
-
-### Exit criterion
-
-Score ≥ 3, zero P0.
+Exit: score ≥ 3, zero P0.
 
 ---
 
 ## Phase 5 — Performance Audit
 
-### Checks
+Animation: `transform`/`opacity` only. Render: memoize, no layout thrash. Loading: lazy, preload hero, critical CSS < 14 KB. Bundle: no unused deps. Layout shift: explicit dimensions. Network: parallel, debounced, throttled.
 
-Animation: `transform` and `opacity` only. No layout-property animation. Bound `filter` / `backdrop-filter` / `box-shadow` paint areas.
+Scoring: 0 severe. 4 fast, lean.
 
-Render: memoize expensive components. Avoid layout thrashing.
-
-Loading: `loading="lazy"` on off-screen images. Hero preloaded. Critical CSS < 14 KB. Fonts use `font-display: swap` + preload.
-
-Bundle: no unused dependencies. Code-split routes.
-
-Layout shift: explicit image dimensions. Skeleton matches loaded content.
-
-Network: parallel critical calls. Debounce search 200-400ms. Throttle scroll 50-100ms.
-
-### Scoring
-
-0 — Severe issues. 4 — Fast, lean, well-optimized.
-
-### Exit criterion
-
-Score ≥ 3, zero P0.
+Exit: score ≥ 3, zero P0.
 
 ---
 
 ## Phase 6 — Resilience & Edge Cases
 
-### Checks
+Text overflow. Empty / error / loading states. i18n (30-40% expansion, logical CSS, RTL, `Intl.*`). Concurrency. Permission states. Browser compatibility.
 
-Text overflow: clamp / ellipsis / wrap. Flex / grid items `min-width: 0`.
+Scoring: 0 happy-path only. 4 hardened.
 
-Empty states: every list, search, dataset.
+(v1.1 promotes Resilience to its own dimension.)
 
-Error states: 4xx and 5xx distinct. Specific actionable messages.
-
-Loading states: skeletons, inline spinners.
-
-i18n: 30-40% expansion budget. Logical CSS properties. RTL reverses. `Intl.*` for dates and numbers.
-
-Concurrency: double-submit prevented. Race conditions handled.
-
-Permission states: read-only mode visually distinct.
-
-### Severity
-
-P0: missing critical state. P1: long text breaks layout. RTL collapse.
-
-### Exit criterion
-
-Zero P0.
+Exit: zero P0.
 
 ---
 
 ## Phase 7 — Editorial & Copy
 
-See [`COPY-DENYLIST.md`](./COPY-DENYLIST.md) for the full denylist.
+Deterministic subset: `qc-070`, `qc-071`, `qc-072`. See [`COPY-DENYLIST.md`](./COPY-DENYLIST.md).
 
-### Banned terms (P1 if hit, P0 in marketing hero)
+LLM-judgment subset: negation pivot, triadic everything, five-paragraph essay shape, uniform paragraph length, synthetic balance, hollow confidence, hedging stacks, interchangeable copy.
 
-`load-bearing`, `highest-leverage`, `biggest unlock`, `reflex defaults`, `collapses into monoculture`, `data-driven`, `seamless(ly)?`, `robust(ness)?`, `elevate[sd]?`, `empower[sd]?`, `underscore[sd]?`, `pivotal`, `tapestry`, `delve(s|d|ing)?`, `in today's`, `gone are the days`, `whether you're`, `let's dive in`, `in summary`, `in conclusion`, `moreover`, `furthermore`.
-
-Em dash and substitutes banned in user-facing prose.
-
-### Structural patterns
-
-Negation pivot. Triadic everything. Five-paragraph essay shape. Uniform paragraph length. Synthetic balance. Hollow confidence. Hedging stacks. Interchangeable copy.
-
-### Exit criterion
-
-Zero P0. ≤ 3 P1.
+Exit: zero P0. ≤ 3 P1.
 
 ---
 
 ## Phase 8 — Cross-Stack Verification
 
-The right pattern in the wrong stack is the wrong pattern. This phase consults this repo's stack-specific guidelines (`data/stacks/*.csv`).
+Deterministic subset: `qc-080`, `qc-081` (P0).
 
-### Per stack
+LLM-judgment subset (pulls from this repo's 15 stack guides): React / Next.js, Vue / Nuxt, Astro, Svelte, SwiftUI, React Native, Flutter, HTML + Tailwind, shadcn/ui, Angular, Laravel, Jetpack Compose.
 
-**React / Next.js**: Server vs Client classified. `next/image`, `next/font`, `next/link`. No `dangerouslySetInnerHTML` with user content.
-
-**Vue / Nuxt**: composables `use*`. No `v-html` with user content. `<NuxtLink>` for routing.
-
-**Astro**: `client:*` only when needed. Image component. Content collections typed.
-
-**Svelte / SvelteKit**: `{@html ...}` only with sanitized content. Stores derived correctly.
-
-**SwiftUI**: `@StateObject` vs `@ObservedObject` correct. Dynamic Type respected. `Accessibility*` modifiers.
-
-**React Native**: Flexbox layout. `Pressable` over `TouchableOpacity`. `FlatList` for long lists. `accessibilityLabel`, `accessibilityRole`, `accessibilityHint`.
-
-**Flutter**: `const` constructors. `Semantics` widgets. `MediaQuery.textScaleFactor`. `ThemeData` carries dark and light.
-
-**HTML + Tailwind**: class strings under 80 chars. Arbitrary values only when no token fits.
-
-**shadcn/ui**: components from `@/components/ui/*`. Theme variables in `:root` and `.dark`. `cn()` for className merging.
-
-**Angular**: no template injection via `[innerHTML]`. `OnPush` change detection. Reactive forms.
-
-**Laravel**: `{{ }}` for escaped output. CSRF tokens on forms. Livewire properties don't leak.
-
-**Jetpack Compose**: `remember` and `rememberSaveable` correctly. `Modifier` order matters. `Material3` semantics.
-
-### Severity
-
-P0: stack-specific security or correctness. P1: stack-specific anti-pattern. P2: drift. P3: idiomatic improvement.
-
-### Exit criterion
-
-Zero P0. ≤ 3 P1.
+Exit: zero P0. ≤ 3 P1.
 
 ---
 
 ## Phase 9 — Sign-Off
 
-Composite the prior phases.
+Audit Health Score /20: Anti-Pattern + Design System + Accessibility + Performance + Resilience.
 
-### Audit Health Score
+Bands: 18-20 Excellent. 14-17 Good. 10-13 Acceptable. 6-9 Poor. 0-5 Critical.
 
-Five dimensions, 0-4 each. Total /20.
+Verdict:
+- Ready to ship: Excellent / Good, Security pass, gate pass, zero P0, ≤ 5 P1.
+- Ship with exception: Acceptable, Security pass, gate pass, zero P0, exception documented.
+- Hold: Poor / Critical, OR Security fail, OR gate fail, OR any P0.
 
-- Anti-Pattern (Phase 2): 0-4
-- Design System (Phase 3): 0-4
-- Accessibility (Phase 4): 0-4
-- Performance (Phase 5): 0-4
-- Theming (sub-component of Phase 3): 0-4
+Output: report per [`RUBRIC.md`](./RUBRIC.md).
 
-### Bands
+## Deterministic gate timing
 
-18-20 Excellent. 14-17 Good. 10-13 Acceptable. 6-9 Poor. 0-5 Critical.
-
-### Verdict logic
-
-- **Ready to ship**: Excellent or Good band, Security passes, zero P0, ≤ 5 P1.
-- **Ship with exception**: Acceptable band, Security passes, zero P0, exception documented.
-- **Hold**: Poor or Critical band, OR Security fails, OR any P0.
-
-### Output
-
-A single markdown report. See [`RUBRIC.md`](./RUBRIC.md) for the template.
-
----
-
-## Phase ordering rationale
-
-Discovery before judgment. Security before everything else. Anti-Patterns before Design System. Design System before Accessibility (tokens carry contrast guarantees). Accessibility before Performance. Performance before Resilience. Resilience before Editorial. Editorial before Stack. Stack before Sign-Off.
+`scripts/check.sh` runs BEFORE Phase 1: CI mode and slash-command mode. Idempotent.
 
 ## Skipping phases
 
-Phases 1, 2, 3, 4 are mandatory. Phases 5, 6, 7, 8 are skippable when the diff doesn't touch their domain.
+Phases 1-4 mandatory. Phases 5-8 skippable.
